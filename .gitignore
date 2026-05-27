@@ -99,3 +99,5 @@ log*
 *.zip
 run*
 replay*
+*result*
+videos*

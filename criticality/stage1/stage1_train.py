@@ -234,7 +234,7 @@ if __name__ == "__main__":
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--batch_size", type=int, default=512)
-    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--hidden", type=int, default=256)
     parser.add_argument("--hidden_layer", type=int, default=3)
     parser.add_argument("--model_idx", type=int, default=1)
