@@ -44,8 +44,6 @@ def episode_to_steps(episode: dict) -> Tuple[np.ndarray, int]:
 
 def flatten_episodes(
     episodes: Iterable[dict],
-    neg_subsample: float = 1.0,
-    rng: np.random.Generator | None = None,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Flatten a list of episode dicts into per-step samples.
 
@@ -54,19 +52,12 @@ def flatten_episodes(
 
     Returns (X, y) with X shape (N, 51), y shape (N,).
     """
-    if rng is None:
-        rng = np.random.default_rng()
 
     X_chunks, y_chunks = [], []
     for ep in episodes:
         feats, ep_label = episode_to_steps(ep)
         if feats.shape[0] == 0:
             continue
-        if ep_label == 0 and neg_subsample < 1.0:
-            keep = rng.random(feats.shape[0]) < neg_subsample
-            feats = feats[keep]
-            if feats.shape[0] == 0:
-                continue
         X_chunks.append(feats)
         y_chunks.append(np.full(feats.shape[0], ep_label, dtype=np.int64))
 
@@ -81,6 +72,18 @@ def load_episodes(path_or_paths) -> List[dict]:
         path_or_paths = [path_or_paths]
     out: List[dict] = []
     for p in path_or_paths:
-        data = np.load(p, allow_pickle=True)
-        out.extend(list(data))
+        try:
+            data = np.load(p, allow_pickle=True)
+            out.extend(list(data))
+        except Exception:
+            # Fallback for files written with pickle.dump(protocol=4)
+            import pickle
+            with open(p, "rb") as f:
+                data = pickle.load(f)
+            if isinstance(data, np.ndarray):
+                out.extend(list(data))
+            elif isinstance(data, list):
+                out.extend(data)
+            else:
+                out.append(data)
     return out

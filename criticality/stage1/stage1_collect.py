@@ -1,4 +1,5 @@
 import os, sys
+import pickle
 import argparse
 import numpy as np
 import torch
@@ -150,18 +151,23 @@ def main(args):
 
         if (ep + 1) % args.save_interval == 0:
             out_pos = os.path.join(args.pos_dir, f"pos_{args.worker_id}.npy")
-            np.save(out_pos, np.array(pos, dtype=object))
             out_neg = os.path.join(args.neg_dir, f"neg_{args.worker_id}.npy")
-            np.save(out_neg, np.array(neg, dtype=object))
+            # Use pickle protocol 4 to allow serializing objects >4GiB
+            with open(out_pos, "wb") as f:
+                pickle.dump(np.array(pos, dtype=object), f, protocol=4)
+            with open(out_neg, "wb") as f:
+                pickle.dump(np.array(neg, dtype=object), f, protocol=4)
 
         if (ep + 1) % 10 == 0:
             print(f"[{ep+1}/{args.n}] pos_buf={pos_num} neg_buf={neg_num} total_pos={total_pos} last_ep_success={int(success_once)}")
 
     env.close()
     out_pos = os.path.join(args.pos_dir, f"pos_{args.worker_id}.npy")
-    np.save(out_pos, np.array(pos, dtype=object))
     out_neg = os.path.join(args.neg_dir, f"neg_{args.worker_id}.npy")
-    np.save(out_neg, np.array(neg, dtype=object))
+    with open(out_pos, "wb") as f:
+        pickle.dump(np.array(pos, dtype=object), f, protocol=4)
+    with open(out_neg, "wb") as f:
+        pickle.dump(np.array(neg, dtype=object), f, protocol=4)
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()

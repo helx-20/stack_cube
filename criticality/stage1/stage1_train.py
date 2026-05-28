@@ -20,6 +20,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import TensorDataset, DataLoader
+import pickle
 
 try:
     import matplotlib.pyplot as plt
@@ -67,18 +68,18 @@ def precision_recall_curve(y_true, y_score, num_thresholds: int = 1000):
 
 # ---------- data loading ----------
 
-def build_split(pos_dir: str, neg_dir: str, neg_subsample: float, rng: np.random.Generator):
+def build_split(data_dir: str):
     """Load all .npy episode files and flatten to (X, y)."""
-    pos_files = collect_npy_files(pos_dir) if os.path.isdir(pos_dir) else []
-    neg_files = collect_npy_files(neg_dir) if os.path.isdir(neg_dir) else []
+    pos_files = collect_npy_files(os.path.join(data_dir, "raw", "positive"))
+    neg_files = collect_npy_files(os.path.join(data_dir, "raw", "negative"))
     print(f"[stage1] pos files: {len(pos_files)} | neg files: {len(neg_files)}")
 
     pos_eps = load_episodes(pos_files) if pos_files else []
     neg_eps = load_episodes(neg_files) if neg_files else []
     print(f"[stage1] pos episodes: {len(pos_eps)} | neg episodes: {len(neg_eps)}")
 
-    X_pos, y_pos = flatten_episodes(pos_eps, neg_subsample=1.0, rng=rng)
-    X_neg, y_neg = flatten_episodes(neg_eps, neg_subsample=neg_subsample, rng=rng)
+    X_pos, y_pos = flatten_episodes(pos_eps)
+    X_neg, y_neg = flatten_episodes(neg_eps)
     print(f"[stage1] pos steps: {len(y_pos)} | neg steps (after subsample): {len(y_neg)}")
 
     if len(X_pos) == 0 and len(X_neg) == 0:
@@ -139,6 +140,17 @@ def save_pr_curve(metrics: dict, path: str):
         return
     fig = plt.figure()
     plt.step(rec, prec, where="post")
+    point_num = 20
+    idx = []
+    for i in range(point_num):
+        for tmp in range(len(thr)):
+            if rec[tmp] >= max(rec) - (max(rec) - min(rec)) * i / point_num:
+                idx.append(tmp)
+                break
+    points = [(rec[i], prec[i], thr[i]) for i in idx]
+    for x, y, tval in points:
+        plt.scatter([x], [y], color='red', s=24)
+        plt.annotate(f'{tval:.2f}', xy=(x, y), xytext=(0, -10), textcoords='offset points', fontsize=8, color='red')
     plt.xlabel("Recall"); plt.ylabel("Precision")
     plt.title(f"Precision-Recall (AUC={metrics['auc']:.4f})")
     plt.grid(True); plt.xlim(0, 1); plt.ylim(0, 1)
@@ -153,8 +165,30 @@ def train(args):
     device = torch.device(args.device if torch.cuda.is_available() or not args.device.startswith("cuda") else "cpu")
     rng = np.random.default_rng(args.seed)
 
-    X, y = build_split(args.pos_dir, args.neg_dir, args.neg_subsample, rng)
-    (X_tr, y_tr), (X_va, y_va), (X_te, y_te) = train_val_test_split(X, y, rng=rng)
+    if os.path.exists(os.path.join(args.data_dir, "train.pkl")):
+        with open(os.path.join(args.data_dir, "train.pkl"), "rb") as f:
+            train_data = pickle.load(f)
+        X_tr = train_data['inputs']
+        y_tr = train_data['labels']
+        with open(os.path.join(args.data_dir, "val.pkl"), "rb") as f:
+            val_data = pickle.load(f)
+        X_va = val_data['inputs']
+        y_va = val_data['labels']
+        with open(os.path.join(args.data_dir, "test.pkl"), "rb") as f:
+            test_data = pickle.load(f)
+        X_te = test_data['inputs']
+        y_te = test_data['labels']
+        print(f"[stage1] loaded data from {args.data_dir}")
+    else:
+        X, y = build_split(args.data_dir)
+        (X_tr, y_tr), (X_va, y_va), (X_te, y_te) = train_val_test_split(X, y, rng=rng)
+        import pickle
+        with open(os.path.join(args.data_dir, "train.pkl"), "wb") as f:
+            pickle.dump({'inputs': X_tr, 'labels': y_tr}, f, protocol=4)
+        with open(os.path.join(args.data_dir, "val.pkl"), "wb") as f:
+            pickle.dump({'inputs': X_va, 'labels': y_va}, f, protocol=4)
+        with open(os.path.join(args.data_dir, "test.pkl"), "wb") as f:
+            pickle.dump({'inputs': X_te, 'labels': y_te}, f, protocol=4)
     print(f"[stage1] train={len(y_tr)} val={len(y_va)} test={len(y_te)} | input_dim={X.shape[1]}")
 
     def make_loader(Xa, ya, shuffle):
@@ -201,14 +235,17 @@ def train(args):
     test = evaluate(model, test_loader, device)
     print(f"\n[stage1][TEST] acc={test['acc']:.4f} p={test['precision']:.4f} "
           f"r={test['recall']:.4f} auc={test['auc']:.4f}")
-    save_pr_curve(test, os.path.join(args.save_dir, "precision_recall.png"))
+    save_pr_curve(test, os.path.join(args.save_dir, f"precision_recall_{args.model_idx}.png"))
 
 
 def test_only(args):
     device = torch.device(args.device if torch.cuda.is_available() or not args.device.startswith("cuda") else "cpu")
-    rng = np.random.default_rng(args.seed)
 
-    X, y = build_split(args.pos_dir, args.neg_dir, args.neg_subsample, rng)
+    with open(os.path.join(args.data_dir, "test.pkl"), "rb") as f:
+        test_data = pickle.load(f)
+    X = test_data['inputs']
+    y = test_data['labels']
+    print(f"[stage1] loaded data from {args.data_dir}")
     ds = TensorDataset(torch.from_numpy(X).float(), torch.from_numpy(y).long())
     loader = DataLoader(ds, batch_size=args.batch_size, shuffle=False)
 
@@ -220,26 +257,21 @@ def test_only(args):
     model.load_state_dict(torch.load(ckpt, map_location=device))
     m = evaluate(model, loader, device)
     print(f"[stage1][TEST] acc={m['acc']:.4f} p={m['precision']:.4f} r={m['recall']:.4f} auc={m['auc']:.4f}")
-    save_pr_curve(m, os.path.join(args.save_dir, "precision_recall.png"))
+    save_pr_curve(m, os.path.join(args.save_dir, f"precision_recall_{args.model_idx}.png"))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--pos_dir", type=str, default="/mnt/mnt1/linxuan/stack_cube_data/data/stage1/positive",
-                        help="Folder with crash (failure) episode .npy files")
-    parser.add_argument("--neg_dir", type=str, default="/mnt/mnt1/linxuan/stack_cube_data/data/stage1/negative",
-                        help="Folder with success episode .npy files")
+    parser.add_argument("--data_dir", type=str, default="/mnt/mnt1/linxuan/stack_cube_data/data/stage1", help="Folder with episode .npy files")
     parser.add_argument("--save_dir", type=str,
                         default="criticality/stage1/model")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--epochs", type=int, default=100)
-    parser.add_argument("--batch_size", type=int, default=512)
+    parser.add_argument("--batch_size", type=int, default=4096)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--hidden", type=int, default=256)
     parser.add_argument("--hidden_layer", type=int, default=3)
-    parser.add_argument("--model_idx", type=int, default=1)
-    parser.add_argument("--neg_subsample", type=float, default=1,
-                        help="Fraction of negative (success) steps to keep, to control class imbalance")
+    parser.add_argument("--model_idx", type=int, default=2)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--test", action="store_true", help="Only run evaluation on the best ckpt")
     args = parser.parse_args()

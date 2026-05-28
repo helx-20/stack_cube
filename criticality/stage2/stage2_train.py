@@ -25,19 +25,13 @@ from criticality.stage1.stage1_train import precision_recall_curve
 from sklearn.metrics import auc
 
 
-def build_val_loader(pos_dir: str, neg_dir: str, batch_size: int, neg_subsample: float, seed: int):
-    """Re-use stage1 episode files for held-out validation (classifier-style)."""
-    rng = np.random.default_rng(seed)
-    pos_files = collect_npy_files(pos_dir) if os.path.isdir(pos_dir) else []
-    neg_files = collect_npy_files(neg_dir) if os.path.isdir(neg_dir) else []
-    pos_eps = load_episodes(pos_files) if pos_files else []
-    neg_eps = load_episodes(neg_files) if neg_files else []
-    X_pos, y_pos = flatten_episodes(pos_eps, neg_subsample=1.0, rng=rng)
-    X_neg, y_neg = flatten_episodes(neg_eps, neg_subsample=neg_subsample, rng=rng)
-    if len(X_pos) == 0 and len(X_neg) == 0:
-        return None
-    X = np.concatenate([X_pos, X_neg], axis=0)
-    y = np.concatenate([y_pos, y_neg], axis=0)
+def build_val_loader(data_dir: str, batch_size: int, seed: int):
+    import pickle
+    with open(os.path.join(data_dir, "val.pkl"), "rb") as f:
+        test_data = pickle.load(f)
+    X = test_data['inputs']
+    y = test_data['labels']
+    print(f"[stage1] loaded data from {data_dir}")
     ds = TensorDataset(torch.from_numpy(X).float(), torch.from_numpy(y).long())
     return DataLoader(ds, batch_size=batch_size, shuffle=False)
 
@@ -88,8 +82,8 @@ def main(args):
                 target_update=args.target_update, device=device)
 
     # 4. Validation loader (classifier-style PR-AUC on held-out episodes)
-    val_loader = build_val_loader(args.val_pos_dir, args.val_neg_dir,
-                                  batch_size=512, neg_subsample=args.val_neg_subsample,
+    val_loader = build_val_loader(args.val_dir,
+                                  batch_size=512,
                                   seed=args.seed)
 
     os.makedirs(args.save_dir, exist_ok=True)
@@ -124,34 +118,30 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--worker_id", type=int, default=0)
 
-    # TODO: 改成本机实际路径
     parser.add_argument("--stage1_ckpt", type=str,
-                        default="/home/teamcommon/tyy/ManiSkill_stackcube/criticality/stage1/model_stackcube/stage1_criticality_best_1.pt")
+                        default="criticality/stage1/model/stage1_criticality_best_1.pt")
     parser.add_argument("--save_dir", type=str,
-                        default="/home/teamcommon/tyy/ManiSkill_stackcube/criticality/stage2/model_stackcube")
+                        default="criticality/stage2/model")
     parser.add_argument("--pos_path", type=str,
-                        default="/mnt/mnt1/tyy/ManiSkill_stackcube/replay_buffer_pos.npy")
+                        default="/mnt/mnt1/linxuan/stack_cube_data/data/stage2/replay_buffer_pos.npy")
     parser.add_argument("--neg_path", type=str,
-                        default="/mnt/mnt1/tyy/ManiSkill_stackcube/replay_buffer_neg.npy")
+                        default="/mnt/mnt1/linxuan/stack_cube_data/data/stage2/replay_buffer_neg.npy")
 
     # validation: reuse stage1's raw episodes
-    parser.add_argument("--val_pos_dir", type=str,
-                        default="/mnt/mnt1/tyy/ManiSkill_stackcube/positive")
-    parser.add_argument("--val_neg_dir", type=str,
-                        default="/mnt/mnt1/tyy/ManiSkill_stackcube/negative")
-    parser.add_argument("--val_neg_subsample", type=float, default=0.05)
+    parser.add_argument("--val_dir", type=str,
+                        default="/mnt/mnt1/linxuan/stack_cube_data/data/stage1/")
 
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--iters", type=int, default=5000)
-    parser.add_argument("--batch_size", type=int, default=512)
+    parser.add_argument("--batch_size", type=int, default=2048)
     parser.add_argument("--pos_ratio", type=float, default=0.5)
     parser.add_argument("--lr", type=float, default=1e-4)
-    parser.add_argument("--gamma", type=float, default=0.9)
-    parser.add_argument("--target_update", type=int, default=50)
+    parser.add_argument("--gamma", type=float, default=0.95)
+    parser.add_argument("--target_update", type=int, default=20)
     parser.add_argument("--log_interval", type=int, default=20)
     parser.add_argument("--val_interval", type=int, default=100)
     parser.add_argument("--hidden", type=int, default=256)
-    parser.add_argument("--hidden_layer", type=int, default=1)
+    parser.add_argument("--hidden_layer", type=int, default=3)
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
     print("args:", args)

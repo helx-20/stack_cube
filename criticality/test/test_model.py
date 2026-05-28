@@ -130,14 +130,16 @@ def main(args):
             print(f"Ep: {ep+1}/{args.n} | Crash Num: {sum(crashes)} | Crash Rate: {mu_hat:.4e} | RHF: {rhf:.3f}", flush=True)
 
         # 定期保存
-        if (ep + 1) % args.save_freq == 0:
-            if args.training_out is None:
-                mode = "nade" if args.nade else "nde"
-                save_path = os.path.join(args.save_dir, f"{mode}_{args.worker_id}.npy")
-                np.save(save_path, np.array(weighted_crashes))
-            else:
-                save_path = os.path.join(args.training_out, f"training_{args.worker_id}.npy")
-                np.save(save_path, np.array(buffer))
+            if (ep + 1) % args.save_freq == 0:
+                if args.training_out is None:
+                    mode = "nade" if args.nade else "nde"
+                    save_path = os.path.join(args.save_dir, f"{mode}_{args.worker_id}.npy")
+                    np.save(save_path, np.array(weighted_crashes))
+                else:
+                    save_path = os.path.join(args.training_out, f"training_{args.worker_id}.npy")
+                    import pickle
+                    with open(save_path, "wb") as f:
+                        pickle.dump(buffer, f, protocol=4)
 
     print(f"[*] 完成！最终 Crash Rate: {np.mean(weighted_crashes):.6e}", flush=True)
     env.close()
@@ -147,14 +149,16 @@ def main(args):
         np.save(save_path, np.array(weighted_crashes))
     else:
         save_path = os.path.join(args.training_out, f"training_{args.worker_id}.npy")
-        np.save(save_path, np.array(buffer))
+        import pickle
+        with open(save_path, "wb") as f:
+            pickle.dump(buffer, f, protocol=4)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--worker_id', type=int, default=0)
     parser.add_argument('--env_id', type=str, default="StackCube-v1")
     parser.add_argument('--checkpoint', type=str, default='examples/baselines/ppo/runs/StackCube-v1__ppo__1__1779808604/final_ckpt.pt')
-    parser.add_argument('--criticality_ckpt', type=str, default=None)
+    parser.add_argument('--criticality_ckpt', type=str, default='criticality/stage1/model/stage1_criticality_best_1.pt')
     parser.add_argument('--device', type=str, default="cpu")
     parser.add_argument('--n', type=int, default=200)
     parser.add_argument('--save_dir', type=str, default='./test_results')

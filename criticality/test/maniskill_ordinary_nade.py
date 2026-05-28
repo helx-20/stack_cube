@@ -194,9 +194,9 @@ class ManiSkillOrdinaryNADE(gym.Wrapper):
 
         with torch.no_grad():
             outputs = self.criticality_model1(cur_input)  # (1331, 2) logits
-        return outputs, outputs, None
+        return outputs
     
-    def idx_to_action(self, action_idx, total_samples=None):
+    def idx_to_action(self, action_idx):
         # StackCube: action_idx ∈ [0, 1331)，直接索引 11^3 离散 (fx, fy, fz) 网格
         return self.force_grid_np[int(action_idx)].astype(np.float32).copy()
 
@@ -208,7 +208,7 @@ class ManiSkillOrdinaryNADE(gym.Wrapper):
             return np.zeros(3), {"weight": 1.0, "p_list": p_list}
 
         if self.args.nade:
-            outputs, _, _ = self.calcu_q(obs)
+            outputs = self.calcu_q(obs)
             scores = self._format_model_output(outputs) 
             criticality = scores
 
@@ -227,7 +227,7 @@ class ManiSkillOrdinaryNADE(gym.Wrapper):
         
         weight = p_list[action_idx] / pdf_array[action_idx]
 
-        return self.idx_to_action(action_idx, total_samples), {"weight": weight, "p_list": p_list}
+        return self.idx_to_action(action_idx), {"weight": weight, "p_list": p_list}
 
     def reset(self, **kwargs):
         obs, info = self.env.reset(**kwargs)

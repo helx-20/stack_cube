@@ -41,12 +41,6 @@ def _obs_to_vec(o) -> np.ndarray:
     return arr
 
 
-def _force_vec(step: dict) -> np.ndarray:
-    return np.array([float(step.get("fx", 0.0)),
-                     float(step.get("fy", 0.0)),
-                     float(step.get("fz", 0.0))], dtype=np.float32)
-
-
 def episode_is_crash(episode) -> bool:
     return not any(bool(s.get("success", False)) for s in episode)
 
@@ -54,31 +48,28 @@ def episode_is_crash(episode) -> bool:
 def build_dataset(data_dir: str, out_dir: str | None = None,
                   neg_subsample: float = 0.05, seed: int = 0):
     rng = np.random.default_rng(seed)
-    out_dir = out_dir or os.path.dirname(os.path.abspath(data_dir))
     os.makedirs(out_dir, exist_ok=True)
 
-    files = sorted(glob.glob(os.path.join(data_dir, "batch_*.npy")))
-    print(f"[stage2_process] found {len(files)} batch files under {data_dir}")
+    pos_files = sorted(glob.glob(os.path.join(data_dir, "positive", "*.npy")))
+    neg_files = sorted(glob.glob(os.path.join(data_dir, "negative", "*.npy")))
+    print(f"[stage2_process] found {len(pos_files)} pos files and {len(neg_files)} neg files under {data_dir}")
 
     pos, neg = [], []
     n_eps_pos = n_eps_neg = 0
 
-    for fp in files:
+    for fp in pos_files:
         batch = np.load(fp, allow_pickle=True)
         for ep in batch:
-            L = len(ep)
+            L = len(ep['obs'])
             if L < 2:
                 continue
-            is_crash = episode_is_crash(ep)
-            if is_crash:
-                n_eps_pos += 1
-            else:
-                n_eps_neg += 1
+            is_crash = True
+            n_eps_pos += 1
 
             for t in range(L):
-                cur_obs = _obs_to_vec(ep[t]["obs"])
-                nxt_obs = _obs_to_vec(ep[t + 1]["obs"]) if t + 1 < L else cur_obs
-                force = _force_vec(ep[t])
+                cur_obs = _obs_to_vec(ep["obs"][t])
+                nxt_obs = _obs_to_vec(ep["obs"][t + 1]) if t + 1 < L else cur_obs
+                force = np.array(ep["force"][t], dtype=np.float32)
                 done = 1.0 if (is_crash and t == L - 1) else 0.0
                 reward = 1.0 if is_crash else 0.0
                 rec = {
@@ -88,11 +79,32 @@ def build_dataset(data_dir: str, out_dir: str | None = None,
                     "reward": reward,
                     "done": done,
                 }
-                if is_crash:
-                    pos.append(rec)
-                else:
-                    if rng.random() < neg_subsample:
-                        neg.append(rec)
+                pos.append(rec)
+    
+    for fp in neg_files:
+        batch = np.load(fp, allow_pickle=True)
+        for ep in batch:
+            L = len(ep['obs'])
+            if L < 2:
+                continue
+            is_crash = False
+            n_eps_neg += 1
+
+            for t in range(L):
+                cur_obs = _obs_to_vec(ep["obs"][t])
+                nxt_obs = _obs_to_vec(ep["obs"][t + 1]) if t + 1 < L else cur_obs
+                force = np.array(ep["force"][t], dtype=np.float32)
+                done = 0.0
+                reward = 0.0
+                rec = {
+                    "input": cur_obs,
+                    "action": force,
+                    "next_input": nxt_obs,
+                    "reward": reward,
+                    "done": done,
+                }
+                if rng.random() < neg_subsample:
+                    neg.append(rec)
 
     print("-" * 40)
     print(f"[stage2_process] crash ep={n_eps_pos}  success ep={n_eps_neg}")
@@ -108,11 +120,9 @@ def build_dataset(data_dir: str, out_dir: str | None = None,
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # TODO: 改成本机实际路径 (StackCube stage2 采集结果)
     parser.add_argument("--data_dir", type=str,
-                        default="/mnt/mnt1/tyy/ManiSkill_stackcube/stage2_collect")
-    parser.add_argument("--out_dir", type=str, default=None,
-                        help="Output folder for replay_buffer_*.npy (default: parent of data_dir)")
+                        default="/mnt/mnt1/linxuan/stack_cube_data/data/stage1/raw")
+    parser.add_argument("--out_dir", type=str, default="/mnt/mnt1/linxuan/stack_cube_data/data/stage2", help="Output folder for replay_buffer_*.npy (default: parent of data_dir)")
     parser.add_argument("--neg_subsample", type=float, default=0.05,
                         help="Keep this fraction of success-episode transitions in neg buffer")
     parser.add_argument("--seed", type=int, default=0)
