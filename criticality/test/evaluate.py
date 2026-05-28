@@ -62,7 +62,7 @@ def analyze(path):
     for file in os.listdir(path):
         try:
             data = np.load(os.path.join(path, file), allow_pickle=True).tolist()
-            # print([data[i] for i in range(len(data)) if data[i] > 0])
+            print([data[i] for i in range(len(data)) if data[i] > 0])
             crashes.extend(data)
         except:
             continue

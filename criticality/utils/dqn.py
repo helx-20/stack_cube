@@ -113,8 +113,8 @@ class DQN:
             B = next_obs.shape[0]
             q_next_vals = torch.zeros_like(q_vals)
             for i in range(B):
-                next_obs = next_obs[i].unsqueeze(0).repeat(self.num_actions, 1)
-                next_input = torch.cat([next_obs, self.action_grid], dim=1)  # (1331, 51)
+                next_obs_tmp = next_obs[i].unsqueeze(0).repeat(self.num_actions, 1)
+                next_input = torch.cat([next_obs_tmp, self.action_grid], dim=1)  # (1331, 51)
                 next_q = torch.softmax(self.target_q_net(next_input), dim=1)[:, 1]
                 q_next_vals[i] = torch.max(next_q, dim=0).values             # (2,)
 

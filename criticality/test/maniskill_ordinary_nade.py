@@ -47,18 +47,6 @@ class NADEConfig:
     update_every: int = 1
     history_len: int = 1
 
-    reward_threshold: float = 5.0
-    kappa: float = 12.0
-
-    # keep exact IS by default: no clipping / fallback in strict mode
-    strict_is: bool = True
-
-    # once cumulative importance weight becomes too small,
-    # stop challenge actions and fall back to baseline sampling.
-    weight_threshold: float = 1e-3
-
-
-
 class ManiSkillOrdinaryNADE(gym.Wrapper):
     def __init__(self, env, cfg, args):
         # ManiSkillVectorEnv may not be a subclass of gym.Env, which makes
@@ -211,6 +199,7 @@ class ManiSkillOrdinaryNADE(gym.Wrapper):
             criticality = scores
 
             if np.max(criticality) > self.args.criticality_threshold:
+                import pdb; pdb.set_trace()
                 criticality_pdf = criticality / np.sum(criticality)
                 epsilon = self.args.epsilon
                 pdf_array = (1 - epsilon) * criticality_pdf + epsilon * p_list
@@ -248,7 +237,7 @@ class ManiSkillOrdinaryNADE(gym.Wrapper):
         if (self.step_count % self.cfg.update_every) == 0:
             new_env_action, criticality_info = self.get_env_action(self.current_state)
             
-            threshold = self.cfg.weight_threshold
+            threshold = self.args.weight_threshold
             if self.total_weight * criticality_info['weight'] < threshold:
                 p_list = criticality_info['p_list']
                 p_final = np.array(p_list, dtype='float64')
