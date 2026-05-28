@@ -47,8 +47,6 @@ class NADEConfig:
     update_every: int = 1
     history_len: int = 1
 
-    # proposal q = epsilon * baseline_uniform + (1-epsilon) * concentrated(mu)
-    epsilon: float = 0.1
     reward_threshold: float = 5.0
     kappa: float = 12.0
 
@@ -125,7 +123,7 @@ class ManiSkillOrdinaryNADE(gym.Wrapper):
         self.returns = []
         self.success_once = False
         self.fail_once = False
-        self.ignore_terminations = False
+
     # ---------- env plumbing ----------
     def _get_base_env(self):
         env = self.env
@@ -214,7 +212,7 @@ class ManiSkillOrdinaryNADE(gym.Wrapper):
 
             if np.max(criticality) > self.args.criticality_threshold:
                 criticality_pdf = criticality / np.sum(criticality)
-                epsilon = 0.01
+                epsilon = self.args.epsilon
                 pdf_array = (1 - epsilon) * criticality_pdf + epsilon * p_list
                 pdf_array /= np.sum(pdf_array) 
             else:
@@ -316,7 +314,7 @@ def make_env(args):
 
     print("正在创建基础环境...")
     t0 = time.time()
-    ignore_term = False 
+    ignore_term = args.ignore_terminations if hasattr(args, "ignore_terminations") else False 
     # 1. 创建原生环境
     env = gym.make(
         args.env_id,

@@ -102,25 +102,24 @@ class DQN:
                rewards: torch.Tensor, dones: torch.Tensor) -> float:
         inputs = inputs.to(self.device)
         next_obs = next_obs.to(self.device)
-        rewards = rewards.to(self.device).unsqueeze(1)
-        dones = dones.to(self.device).unsqueeze(1)
+        rewards = rewards.to(self.device)
+        dones = dones.to(self.device)
 
         self.q_net.train()
-        q_vals = self.q_net(inputs)  # (B, 2)
+        q_vals = torch.softmax(self.q_net(inputs), dim=1)[:, 1]  # (B, 2)
 
         # Target Q: for each next_obs, enumerate all 1331 force actions and take max.
         with torch.no_grad():
             B = next_obs.shape[0]
             q_next_vals = torch.zeros_like(q_vals)
             for i in range(B):
-                cur_obs = next_obs[i].unsqueeze(0).repeat(self.num_actions, 1)
-                cur_input = torch.cat([cur_obs, self.action_grid], dim=1)  # (1331, 51)
-                cur_q = self.target_q_net(cur_input)                        # (1331, 2)
-                q_next_vals[i] = torch.max(cur_q, dim=0).values             # (2,)
+                next_obs = next_obs[i].unsqueeze(0).repeat(self.num_actions, 1)
+                next_input = torch.cat([next_obs, self.action_grid], dim=1)  # (1331, 51)
+                next_q = torch.softmax(self.target_q_net(next_input), dim=1)[:, 1]
+                q_next_vals[i] = torch.max(next_q, dim=0).values             # (2,)
 
         # Reward broadcasts to both logits; done masks bootstrap.
-        q_targets = rewards + self.gamma * q_next_vals * (1.0 - dones)
-
+        q_targets = dones + (rewards * (1-self.gamma) + self.gamma * q_next_vals) * (1.0 - dones)
         loss = self.loss_fn(q_vals, q_targets)
         self.optimizer.zero_grad()
         loss.backward()

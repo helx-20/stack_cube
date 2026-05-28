@@ -101,12 +101,14 @@ def main(args):
         if it % args.log_interval == 0:
             print(f"[stage2] iter {it}/{args.iters}  loss={loss:.6f}")
 
-        if val_loader is not None and it % args.val_interval == 0:
-            cur_auc = validate(agent.q_net, val_loader, device, tag=f"iter{it}")
-            if cur_auc > best_auc:
-                best_auc = cur_auc
-                torch.save(agent.q_net.state_dict(), best_path)
-                print(f"  -> saved new best ckpt (auc={best_auc:.4f}) to {best_path}")
+        if it % args.val_interval == 0:
+            torch.save(agent.q_net.state_dict(), os.path.join(args.save_dir, f"stage2_dqn_iter{it}.pt"))
+            if val_loader is not None:
+                cur_auc = validate(agent.q_net, val_loader, device, tag=f"iter{it}")
+                if cur_auc > best_auc:
+                    best_auc = cur_auc
+                    torch.save(agent.q_net.state_dict(), best_path)
+                    print(f"  -> saved new best ckpt (auc={best_auc:.4f}) to {best_path}")
 
     # final dump
     final_path = os.path.join(args.save_dir, f"stage2_dqn_final_{args.worker_id}.pt")
@@ -133,10 +135,10 @@ if __name__ == "__main__":
 
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--iters", type=int, default=5000)
-    parser.add_argument("--batch_size", type=int, default=2048)
+    parser.add_argument("--batch_size", type=int, default=1024)
     parser.add_argument("--pos_ratio", type=float, default=0.5)
     parser.add_argument("--lr", type=float, default=1e-4)
-    parser.add_argument("--gamma", type=float, default=0.95)
+    parser.add_argument("--gamma", type=float, default=0.5)
     parser.add_argument("--target_update", type=int, default=20)
     parser.add_argument("--log_interval", type=int, default=20)
     parser.add_argument("--val_interval", type=int, default=100)

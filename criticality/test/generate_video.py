@@ -48,19 +48,15 @@ def main(args):
     
     crashes = []
     weighted_crashes = []
-    z_score = norm.ppf(1 - 0.1 / 2) 
-    
-    buffer = {'obs': [], 'actions': [], 'weights': [], 'rewards': [], 'dones': [], 'log_probs': []}
-    
-    start_time = time.time()
 
     for ep in range(args.n):
         obs, info = env.reset(seed=args.worker_id * args.n + ep)
-        ep_obs, ep_acts, ep_weights, ep_log_probs = [], [], [], []
         success_once = False
         done = False
+        steps = 0
         
-        while not done:
+        while steps < 50: # not done:
+            steps += 1
             obs_tensor = torch.as_tensor(obs).to(device)
             if obs_tensor.ndim == 1: obs_tensor = obs_tensor.unsqueeze(0)
 
@@ -85,10 +81,6 @@ def main(args):
             
             success_once = success_once or current_success
 
-            # 权重记录
-            sw = info.get("criticality_info", {}).get("weight", 1.0)
-            ep_weights.append(float(sw))
-
             obs = next_obs
             done = bool(terminated) or bool(truncated)
 
@@ -102,15 +94,15 @@ def main(args):
         if is_crash == 1:
             print(f"[Crash] Ep: {ep} | W: {total_weight:.4e}", flush=True)
 
-        if (ep + 1) % 10 == 0:
-            elapsed = time.time() - start_time
-            mu_hat = np.mean(weighted_crashes)
-            n_samples = len(weighted_crashes)
-            rhf = 0.0
-            if n_samples > 1 and mu_hat > 1e-15:
-                sigma_hat = np.std(weighted_crashes, ddof=1) 
-                rhf = (z_score * sigma_hat) / (np.sqrt(n_samples) * mu_hat)
-            print(f"Ep: {ep+1}/{args.n} | Crash Num: {sum(crashes)} | Crash Rate: {mu_hat:.4e} | RHF: {rhf:.3f}", flush=True)
+        # if (ep + 1) % 10 == 0:
+        #     elapsed = time.time() - start_time
+        #     mu_hat = np.mean(weighted_crashes)
+        #     n_samples = len(weighted_crashes)
+        #     rhf = 0.0
+        #     if n_samples > 1 and mu_hat > 1e-15:
+        #         sigma_hat = np.std(weighted_crashes, ddof=1) 
+        #         rhf = (z_score * sigma_hat) / (np.sqrt(n_samples) * mu_hat)
+        #     print(f"Ep: {ep+1}/{args.n} | Crash Num: {sum(crashes)} | Crash Rate: {mu_hat:.4e} | RHF: {rhf:.3f}", flush=True)
 
     print(f"[*] 完成！最终 Crash Rate: {np.mean(weighted_crashes):.6e}", flush=True)
     env.close()
@@ -120,9 +112,10 @@ if __name__ == '__main__':
     parser.add_argument('--worker_id', type=int, default=0)
     parser.add_argument('--env_id', type=str, default="StackCube-v1")
     parser.add_argument('--checkpoint', type=str, default='examples/baselines/ppo/runs/StackCube-v1__ppo__1__1779808604/final_ckpt.pt')
+    # parser.add_argument('--checkpoint', type=str, default='examples/baselines/ppo/runs/StackCube-v1__ppo__1__1779808604/ckpt_251.pt')
     parser.add_argument('--criticality_ckpt', type=str, default=None)
     parser.add_argument('--device', type=str, default="cpu")
-    parser.add_argument('--n', type=int, default=1)
+    parser.add_argument('--n', type=int, default=100)
     
     parser.add_argument('--force_mag', type=float, default=0.6)
     parser.add_argument('--force_prob', type=float, default=1.0)
@@ -133,7 +126,8 @@ if __name__ == '__main__':
     parser.add_argument("--sim_backend", type=str, default="physx_cpu")
     parser.add_argument('--nade', action='store_true', default=False)
     parser.add_argument('--criticality_threshold', type=float, default=0.1, help="Threshold for applying disturbance in NADE")
-    parser.add_argument('--save_video_dir', type=str, default='criticality/test/videos')
+    parser.add_argument('--save_video_dir', type=str, default='criticality/test/videos_new')
+    parser.add_argument('--ignore_terminations', type=bool, default=True)
     
     parser.add_argument('--log_std', type=float, default=None, help="Initial log_std for data collection noise")
     
