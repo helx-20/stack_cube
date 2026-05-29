@@ -39,7 +39,7 @@ class NADEConfig:
     grid_size: int = 11
     xy_only: bool = False
 
-    force_mag: float = 0.6
+    force_mag: float = 1.0
     force_prob: float = 1.0
 
     # recompute model-guided proposal center every k steps,
@@ -199,7 +199,9 @@ class ManiSkillOrdinaryNADE(gym.Wrapper):
             criticality = scores
 
             if np.max(criticality) > self.args.criticality_threshold:
-                import pdb; pdb.set_trace()
+                alpha = 10.0 
+                shifted_scores = scores - np.max(criticality)
+                criticality = np.exp(shifted_scores * alpha)
                 criticality_pdf = criticality / np.sum(criticality)
                 epsilon = self.args.epsilon
                 pdf_array = (1 - epsilon) * criticality_pdf + epsilon * p_list

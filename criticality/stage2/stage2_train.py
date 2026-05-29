@@ -111,7 +111,7 @@ def main(args):
                     print(f"  -> saved new best ckpt (auc={best_auc:.4f}) to {best_path}")
 
     # final dump
-    final_path = os.path.join(args.save_dir, f"stage2_dqn_final_{args.worker_id}.pt")
+    final_path = os.path.join(args.save_dir, f"stage2_dqn_final.pt")
     torch.save(agent.q_net.state_dict(), final_path)
     print(f"[stage2] final ckpt saved to {final_path}")
 

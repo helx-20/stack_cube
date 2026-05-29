@@ -68,7 +68,7 @@ def precision_recall_curve(y_true, y_score, num_thresholds: int = 1000):
 
 # ---------- data loading ----------
 
-def build_split(data_dir: str):
+def build_split(data_dir: str, rng: np.random.Generator | None = None, ratios=(0.8, 0.1, 0.1)):
     """Load all .npy episode files and flatten to (X, y)."""
     pos_files = collect_npy_files(os.path.join(data_dir, "raw", "positive"))
     neg_files = collect_npy_files(os.path.join(data_dir, "raw", "negative"))
@@ -85,21 +85,31 @@ def build_split(data_dir: str):
     if len(X_pos) == 0 and len(X_neg) == 0:
         raise RuntimeError("No data found under the provided pos_dir / neg_dir")
 
-    X = np.concatenate([X_pos, X_neg], axis=0)
-    y = np.concatenate([y_pos, y_neg], axis=0)
-    return X, y
-
-
-def train_val_test_split(X: np.ndarray, y: np.ndarray, ratios=(0.8, 0.1, 0.1),
-                         rng: np.random.Generator | None = None):
+    X_pos = np.array(X_pos)
+    X_neg = np.array(X_neg)
+    y_pos = np.array(y_pos)
+    y_neg = np.array(y_neg)
+    
     rng = rng or np.random.default_rng(0)
-    n = len(y)
-    idx = np.arange(n)
-    rng.shuffle(idx)
-    n_train = int(n * ratios[0])
-    n_val = int(n * ratios[1])
-    tr, va, te = idx[:n_train], idx[n_train:n_train + n_val], idx[n_train + n_val:]
-    return (X[tr], y[tr]), (X[va], y[va]), (X[te], y[te])
+    n_pos = len(y_pos)
+    n_neg = len(y_neg)
+    idx_pos = np.arange(n_pos)
+    idx_neg = np.arange(n_neg)
+    rng.shuffle(idx_pos)
+    rng.shuffle(idx_neg)
+    n_train_pos = int(n_pos * ratios[0])
+    n_val_pos = int(n_pos * ratios[1])
+    n_train_neg = int(n_neg * ratios[0])
+    n_val_neg = int(n_neg * ratios[1])
+    tr_pos, va_pos, te_pos = idx_pos[:n_train_pos], idx_pos[n_train_pos:n_train_pos + n_val_pos], idx_pos[n_train_pos + n_val_pos:]
+    tr_neg, va_neg, te_neg = idx_neg[:int(0.1*n_train_neg)], idx_neg[n_train_neg:n_train_neg + n_val_neg], idx_neg[n_train_neg + n_val_neg:]
+    X_train = np.concatenate([X_pos[tr_pos], X_neg[tr_neg]], axis=0)
+    y_train = np.concatenate([y_pos[tr_pos], y_neg[tr_neg]], axis=0)
+    X_val = np.concatenate([X_pos[va_pos], X_neg[va_neg]], axis=0)
+    y_val = np.concatenate([y_pos[va_pos], y_neg[va_neg]], axis=0)
+    X_test = np.concatenate([X_pos[te_pos], X_neg[te_neg]], axis=0)
+    y_test = np.concatenate([y_pos[te_pos], y_neg[te_neg]], axis=0)
+    return (X_train, y_train), (X_val, y_val), (X_test, y_test)
 
 
 # ---------- evaluation ----------
@@ -180,16 +190,14 @@ def train(args):
         y_te = test_data['labels']
         print(f"[stage1] loaded data from {args.data_dir}")
     else:
-        X, y = build_split(args.data_dir)
-        (X_tr, y_tr), (X_va, y_va), (X_te, y_te) = train_val_test_split(X, y, rng=rng)
-        import pickle
+        (X_tr, y_tr), (X_va, y_va), (X_te, y_te) = build_split(args.data_dir, rng=rng)
         with open(os.path.join(args.data_dir, "train.pkl"), "wb") as f:
             pickle.dump({'inputs': X_tr, 'labels': y_tr}, f, protocol=4)
         with open(os.path.join(args.data_dir, "val.pkl"), "wb") as f:
             pickle.dump({'inputs': X_va, 'labels': y_va}, f, protocol=4)
         with open(os.path.join(args.data_dir, "test.pkl"), "wb") as f:
             pickle.dump({'inputs': X_te, 'labels': y_te}, f, protocol=4)
-    print(f"[stage1] train={len(y_tr)} val={len(y_va)} test={len(y_te)} | input_dim={X.shape[1]}")
+    print(f"[stage1] train={len(y_tr)} val={len(y_va)} test={len(y_te)} | input_dim={X_tr.shape[1]}")
 
     def make_loader(Xa, ya, shuffle):
         ds = TensorDataset(torch.from_numpy(Xa).float(), torch.from_numpy(ya).long())
@@ -199,7 +207,7 @@ def train(args):
     val_loader = make_loader(X_va, y_va, False)
     test_loader = make_loader(X_te, y_te, False)
 
-    model = SimpleClassifier(input_dim=X.shape[1], hidden=args.hidden, hidden_layer=args.hidden_layer).to(device)
+    model = SimpleClassifier(input_dim=X_tr.shape[1], hidden=args.hidden, hidden_layer=args.hidden_layer).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
@@ -243,13 +251,13 @@ def test_only(args):
 
     with open(os.path.join(args.data_dir, "test.pkl"), "rb") as f:
         test_data = pickle.load(f)
-    X = test_data['inputs']
-    y = test_data['labels']
+    X_te = test_data['inputs']
+    y_te = test_data['labels']
     print(f"[stage1] loaded data from {args.data_dir}")
-    ds = TensorDataset(torch.from_numpy(X).float(), torch.from_numpy(y).long())
+    ds = TensorDataset(torch.from_numpy(X_te).float(), torch.from_numpy(y_te).long())
     loader = DataLoader(ds, batch_size=args.batch_size, shuffle=False)
 
-    model = SimpleClassifier(input_dim=X.shape[1], hidden=args.hidden, hidden_layer=args.hidden_layer).to(device)
+    model = SimpleClassifier(input_dim=X_te.shape[1], hidden=args.hidden, hidden_layer=args.hidden_layer).to(device)
     ckpt = os.path.join(args.save_dir, f"stage1_criticality_best_{args.model_idx}.pt")
     if not os.path.exists(ckpt):
         print(f"[stage1][TEST] no ckpt at {ckpt}, abort")
@@ -271,7 +279,7 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--hidden", type=int, default=256)
     parser.add_argument("--hidden_layer", type=int, default=3)
-    parser.add_argument("--model_idx", type=int, default=2)
+    parser.add_argument("--model_idx", type=int, default=1)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--test", action="store_true", help="Only run evaluation on the best ckpt")
     args = parser.parse_args()

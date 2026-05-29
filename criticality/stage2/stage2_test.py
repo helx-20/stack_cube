@@ -156,7 +156,7 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--hidden", type=int, default=256)
     parser.add_argument("--hidden_layer", type=int, default=3)
-    parser.add_argument("--model_iter", type=int, default=4600)
+    parser.add_argument("--model_iter", type=int, default=5000)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--test", action="store_true", help="Only run evaluation on the best ckpt")
     args = parser.parse_args()

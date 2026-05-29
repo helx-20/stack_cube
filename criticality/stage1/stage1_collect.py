@@ -174,7 +174,7 @@ if __name__ == "__main__":
 
     # env / model
     p.add_argument("--env_id", type=str, default="StackCube-v1")
-    p.add_argument("--checkpoint", type=str, default='examples/baselines/ppo/runs/StackCube-v1__ppo__1__1779808604/final_ckpt.pt')
+    p.add_argument("--checkpoint", type=str, default='examples/baselines/ppo/runs/StackCube-v1__ppo__1__1780033432/final_ckpt.pt')
     p.add_argument("--device", type=str, default="cpu")
     p.add_argument("--seed", type=int, default=0)
 
@@ -193,7 +193,7 @@ if __name__ == "__main__":
     p.add_argument("--partial_reset", action="store_true", default=True)
 
     # disturbance knobs (your "wind_power"-like params)
-    p.add_argument("--force_mag", type=float, default=0.6)     # like wind_power
+    p.add_argument("--force_mag", type=float, default=1.0)     # like wind_power
     p.add_argument("--force_prob", type=float, default=1.0)    # like how often wind applies
     p.add_argument("--xy_only", action="store_true", default=False)
     main(p.parse_args())

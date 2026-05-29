@@ -52,11 +52,11 @@ class Args:
     # Algorithm specific arguments
     env_id: str = "StackCube-v1"
     """the id of the environment"""
-    total_timesteps: int = 30000000
+    total_timesteps: int = 100000000
     """total timesteps of the experiments"""
     learning_rate: float = 1e-4
     """the learning rate of the optimizer"""
-    num_envs: int = 512
+    num_envs: int = 2048
     """the number of parallel environments"""
     num_eval_envs: int = 100
     """the number of parallel evaluation environments"""
@@ -75,7 +75,7 @@ class Args:
     """for benchmarking purposes we want to reconfigure the eval environment each reset to ensure objects are randomized in some tasks"""
     #修改 新增 为了在中途施加干扰力
     # === disturbance force applied to cube during training ===
-    disturb_force_mag: float = 0.6   # 力大小（牛顿），0=关闭
+    disturb_force_mag: float = 1.0   # 力大小（牛顿），0=关闭
     disturb_prob: float = 1.0        # 每步施加概率（1.0=每步都加）
     disturb_xy_only: bool = False     # 只在XY平面加力（PushCube推荐）
     control_mode: Optional[str] = "pd_joint_delta_pos"
@@ -88,7 +88,7 @@ class Args:
     """the lambda for the general advantage estimation"""
     num_minibatches: int = 64
     """the number of mini-batches"""
-    update_epochs: int = 8
+    update_epochs: int = 10
     """the K epochs to update the policy"""
     norm_adv: bool = True
     """Toggles advantages normalization"""
