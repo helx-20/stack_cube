@@ -119,7 +119,7 @@ class DQN:
                 q_next_vals[i] = torch.max(next_q, dim=0).values             # (2,)
 
         # Reward broadcasts to both logits; done masks bootstrap.
-        q_targets = dones + (rewards * (1-self.gamma) + self.gamma * q_next_vals) * (1.0 - dones)
+        q_targets = rewards + (self.gamma * q_next_vals) * (1.0 - rewards)
         loss = self.loss_fn(q_vals, q_targets)
         self.optimizer.zero_grad()
         loss.backward()

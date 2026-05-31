@@ -136,7 +136,7 @@ if __name__ == "__main__":
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--iters", type=int, default=5000)
     parser.add_argument("--batch_size", type=int, default=4096)
-    parser.add_argument("--pos_ratio", type=float, default=0.2)
+    parser.add_argument("--pos_ratio", type=float, default=0.5)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--gamma", type=float, default=0.9)
     parser.add_argument("--target_update", type=int, default=20)

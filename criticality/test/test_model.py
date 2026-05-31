@@ -149,16 +149,15 @@ def main(args):
         np.save(save_path, np.array(weighted_crashes))
     else:
         save_path = os.path.join(args.training_out, f"training_{args.worker_id}.npy")
-        import pickle
-        with open(save_path, "wb") as f:
-            pickle.dump(buffer, f, protocol=4)
+        np.save(save_path, buffer)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--worker_id', type=int, default=0)
     parser.add_argument('--env_id', type=str, default="StackCube-v1")
-    parser.add_argument('--checkpoint', type=str, default='examples/baselines/ppo/runs/StackCube-v1__ppo__1__1780033432/final_ckpt.pt')
-    #parser.add_argument('--criticality_ckpt', type=str, default='criticality/stage2/model/stage2_dqn_iter5000.pt')
+    # parser.add_argument('--checkpoint', type=str, default='examples/baselines/ppo/runs/StackCube-v1__ppo__1__1780033432/final_ckpt.pt')
+    parser.add_argument('--checkpoint', type=str, default='training/models/round1/offline_model_ep50.pt')
+    # parser.add_argument('--criticality_ckpt', type=str, default='criticality/stage2/model/stage2_dqn_iter5000.pt')
     parser.add_argument('--criticality_ckpt', type=str, default='criticality/stage1/model/stage1_criticality_best_1.pt')
     parser.add_argument('--device', type=str, default="cpu")
     parser.add_argument('--n', type=int, default=200)
@@ -174,7 +173,7 @@ if __name__ == '__main__':
     parser.add_argument('--nade', action='store_true', default=False)
     parser.add_argument('--criticality_threshold', type=float, default=0.5, help="Threshold for applying disturbance in NADE")
     parser.add_argument('--epsilon', type=float, default=0.01, help="Epsilon for epsilon-greedy exploration in NADE")
-    parser.add_argument('--weight_threshold', type=float, default=1e-3, help="Threshold for cumulative importance weight in NADE")
+    parser.add_argument('--weight_threshold', type=float, default=1e-2, help="Threshold for cumulative importance weight in NADE")
     parser.add_argument('--training_out', type=str, default=None)
     
     parser.add_argument('--log_std', type=float, default=None, help="Initial log_std for data collection noise")

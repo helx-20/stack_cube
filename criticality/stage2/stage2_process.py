@@ -123,7 +123,7 @@ if __name__ == "__main__":
     parser.add_argument("--data_dir", type=str,
                         default="/mnt/mnt1/linxuan/stack_cube_data/data/stage1/raw")
     parser.add_argument("--out_dir", type=str, default="/mnt/mnt1/linxuan/stack_cube_data/data/stage2", help="Output folder for replay_buffer_*.npy (default: parent of data_dir)")
-    parser.add_argument("--neg_subsample", type=float, default=0.05,
+    parser.add_argument("--neg_subsample", type=float, default=0.1,
                         help="Keep this fraction of success-episode transitions in neg buffer")
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()

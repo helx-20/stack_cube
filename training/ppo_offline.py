@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os
+import os, sys
 import glob
 import argparse
 import numpy as np
@@ -24,18 +24,22 @@ class Agent(nn.Module):
         self.critic = nn.Sequential(
             layer_init(nn.Linear(obs_dim, 256)),
             nn.Tanh(),
-            layer_init(nn.Linear(256, 256)),
+            layer_init(nn.Linear(256, 512)),
             nn.Tanh(),
-            layer_init(nn.Linear(256, 256)),
+            layer_init(nn.Linear(512, 512)),
+            nn.Tanh(),
+            layer_init(nn.Linear(512, 256)),
             nn.Tanh(),
             layer_init(nn.Linear(256, 1)),
         )
         self.actor_mean = nn.Sequential(
             layer_init(nn.Linear(obs_dim, 256)),
             nn.Tanh(),
-            layer_init(nn.Linear(256, 256)),
+            layer_init(nn.Linear(256, 512)),
             nn.Tanh(),
-            layer_init(nn.Linear(256, 256)),
+            layer_init(nn.Linear(512, 512)),
+            nn.Tanh(),
+            layer_init(nn.Linear(512, 256)),
             nn.Tanh(),
             layer_init(nn.Linear(256, act_dim), std=0.01*np.sqrt(2)),
         )
@@ -53,61 +57,85 @@ class Agent(nn.Module):
 # ==========================================
 # 2. 数据处理与加载 (已修改以支持多文件夹)
 # ==========================================
-def load_offline_dataset(data_dirs, gamma=0.8):
+def load_offline_dataset(data_dirs, gamma=0.95):
     """
     data_dirs: 可以是一个字符串路径，也可以是一个路径列表
     """
     all_obs, all_acts, all_returns, all_weights, all_log_probs = [], [], [], [], []
     
-    # 如果传入的是单个字符串，转为列表统一处理
     if isinstance(data_dirs, str):
         data_dirs = [data_dirs]
-    
-    npy_files = []
-    for d in data_dirs:
-        files = glob.glob(os.path.join(d, "*.npy"))
-        if not files:
-            print(f"[!] 警告: 文件夹 {d} 中没有找到 .npy 文件。")
-        npy_files.extend(files)
 
-    if not npy_files:
-        raise ValueError(f"在所有提供的路径 {data_dirs} 中均未找到 .npy 数据文件！")
-        
-    print(f"[*] 从 {len(data_dirs)} 个目录中共找到 {len(npy_files)} 个数据文件，正在处理...")
-
-    for file in npy_files:
-        try:
-            data = np.load(file, allow_pickle=True).item()
+    all_obs = np.empty((0, 48), dtype=np.float32)
+    all_acts = np.empty((0, 8), dtype=np.float32)
+    all_returns = np.empty((0,), dtype=np.float32)
+    all_weights = np.empty((0,), dtype=np.float32)
+    all_log_probs = np.empty((0,), dtype=np.float32)
+    for data_dir in data_dirs:
+        all_data_path = os.path.join(data_dir, 'all_data_unified_weight.npy')
+        if os.path.exists(all_data_path):
+            data = np.load(all_data_path, allow_pickle=True).item()
             obs = np.array(data['obs'], dtype=np.float32)
             acts = np.array(data['actions'], dtype=np.float32)
-            rews = np.array(data['rewards'], dtype=np.float32)
-            dones = np.array(data['dones'], dtype=bool)
+            returns = np.array(data['returns'], dtype=np.float32)
             weights = np.array(data['weights'], dtype=np.float32)
-            log_probs = np.array(data['log_probs'], dtype=np.float32).reshape(-1)
+            log_prob = np.array(data['log_prob'], dtype=np.float32)
 
-            # 离线计算 Discounted Returns
-            returns = np.zeros_like(rews, dtype=np.float32)
-            G = 0.0
-            for i in reversed(range(len(rews))):
-                if dones[i]:
-                    G = rews[i]
-                else:
-                    G = rews[i] + gamma * G
-                returns[i] = G
+            all_obs = np.concatenate([all_obs, obs])
+            all_acts = np.concatenate([all_acts, acts])
+            all_returns = np.concatenate([all_returns, returns])
+            all_weights = np.concatenate([all_weights, weights])
+            all_log_probs = np.concatenate([all_log_probs, log_prob])
+        else:
+            tmp_obs = np.empty((0, 48), dtype=np.float32)
+            tmp_acts = np.empty((0, 8), dtype=np.float32)
+            tmp_returns = np.empty((0,), dtype=np.float32)
+            tmp_weights = np.empty((0,), dtype=np.float32)
+            tmp_log_probs = np.empty((0,), dtype=np.float32)
+            for filename in os.listdir(data_dir):
+                if filename.endswith('.npy') and not filename.startswith('all'):
+                    path = os.path.join(data_dir, filename)
+                    try:
+                        data = np.load(path, allow_pickle=True)
+                    except Exception as e:
+                        continue
+                    obs = np.array(data['obs'], dtype=np.float32)
+                    acts = np.array(data['actions'], dtype=np.float32)
+                    rews = np.array(data['rewards'], dtype=np.float32)
+                    dones = np.array(data['dones'], dtype=bool)
+                    weights = np.array(data['weights'], dtype=np.float32)
+                    log_probs = np.array(data['log_probs'], dtype=np.float32).reshape(-1)
 
-            all_obs.append(obs)
-            all_acts.append(acts)
-            all_returns.append(returns)
-            all_weights.append(weights)
-            all_log_probs.append(log_probs)
-        except Exception as e:
-            print(f"[!] 读取文件 {file} 失败: {e}")
+                    # 离线计算 Discounted Returns
+                    returns = np.zeros_like(rews, dtype=np.float32)
+                    G = 0.0
+                    for i in reversed(range(len(rews))):
+                        if dones[i]:
+                            G = rews[i]
+                        else:
+                            G = rews[i] + gamma * G
+                        returns[i] = G
 
-    obs_t = torch.tensor(np.concatenate(all_obs), dtype=torch.float32)
-    acts_t = torch.tensor(np.concatenate(all_acts), dtype=torch.float32)
-    returns_t = torch.tensor(np.concatenate(all_returns), dtype=torch.float32)
-    weights_t = torch.tensor(np.concatenate(all_weights), dtype=torch.float32)
-    log_probs_t = torch.tensor(np.concatenate(all_log_probs), dtype=torch.float32)
+                    tmp_obs = np.concatenate([tmp_obs, obs])
+                    tmp_acts = np.concatenate([tmp_acts, acts])
+                    tmp_returns = np.concatenate([tmp_returns, returns])
+                    tmp_weights = np.concatenate([tmp_weights, weights])
+                    tmp_log_probs = np.concatenate([tmp_log_probs, log_probs])
+            
+            np.save(all_data_path, {'obs': tmp_obs, 'actions': tmp_acts, 'returns': tmp_returns, 'weights': tmp_weights, 'log_prob': tmp_log_probs})
+            all_obs = np.concatenate([all_obs, tmp_obs])
+            all_acts = np.concatenate([all_acts, tmp_acts])
+            all_returns = np.concatenate([all_returns, tmp_returns])
+            all_weights = np.concatenate([all_weights, tmp_weights])
+            all_log_probs = np.concatenate([all_log_probs, tmp_log_probs])
+
+    obs_t = torch.tensor(all_obs, dtype=torch.float32)
+    acts_t = torch.tensor(all_acts, dtype=torch.float32)
+    returns_t = torch.tensor(all_returns, dtype=torch.float32)
+    weights_t = torch.tensor(all_weights, dtype=torch.float32)
+    weights_t = weights_t.clamp(max=1.0)
+    weights_t = weights_t / (weights_t.mean() + 1e-8)
+    log_probs_t = torch.tensor(all_log_probs, dtype=torch.float32)
     
     print(f"[*] 数据集加载完毕。总步数: {obs_t.shape[0]}")
     return obs_t, acts_t, returns_t, weights_t, log_probs_t
@@ -130,9 +158,9 @@ def train_offline(args):
         agent.load_state_dict(torch.load(args.initial_ckpt, map_location=device))
         print(f"[*] 成功加载预训练基线模型: {args.initial_ckpt}")
 
-    with torch.no_grad():
-        agent.actor_logstd.fill_(args.log_std)
-        agent.actor_logstd.requires_grad = False
+    if args.log_std is not None:
+        with torch.no_grad():
+            agent.actor_logstd.fill_(args.log_std)
 
     optimizer = optim.Adam(filter(lambda p: p.requires_grad, agent.parameters()), lr=args.learning_rate, eps=1e-5)
 
@@ -156,42 +184,33 @@ def train_offline(args):
             values = agent.get_value(b_obs).squeeze(-1)
             v_loss = F.mse_loss(values, b_ret)
 
-            # --- 2. 计算标准的优势值 (Advantage) ---
             with torch.no_grad():
                 adv = b_ret - values.detach()
-                # 🌟 关键修复：必须进行归一化，让优势值有正有负！
-                # 绝对不能套用 torch.exp()，否则 IS 将无法正确惩罚坏动作。
                 adv = (adv - adv.mean()) / (adv.std() + 1e-8)
+            # awac_w = torch.exp(adv)
+            # total_w = (adv * b_weights).clamp(max=args.combined_weight_max)
 
-            # --- 3. 🌟 核心：策略重要性采样 (Policy IS) ---
             dist = agent.get_action_distribution(b_obs)
             logp = dist.log_prob(b_act).sum(dim=1)
             
-            # 🌟 关键补丁：在 exp 之前限制对数差的范围，防止数值爆炸！
-            # 允许比率在 [e^-5, e^2] (即约 0.006 到 7.38) 之间波动，然后再交给 PPO Clip
             log_ratio = logp - b_log_prob
             log_ratio = torch.clamp(log_ratio, min=-5.0, max=2.0) 
-            
-            # 保留你的核心 IS 逻辑
             ratio = torch.exp(log_ratio)
-
             clip_coef = 0.2
             surr1 = ratio * adv
             surr2 = torch.clamp(ratio, 1.0 - clip_coef, 1.0 + clip_coef) * adv
+            ppo_loss = -(torch.min(surr1, surr2)).mean()
             
-            safe_env_w = torch.clamp(b_weights, min=0.5, max=5.0)
-            ppo_loss = -(torch.min(surr1, surr2) * safe_env_w).mean()
-
-            # --- 4. 弱化行为锚点 (Soft Anchor) ---
-            # 因为数据来源有 -2.0 和 -1.5 两种 log_std，初始的 IS ratio 波动会很大
-            # 我们需要把 anchor_loss 调低一点 (从 0.05 降到 0.01)，
-            # 给 IS 留出足够的空间去调整 mean，从而让 ratio 尽快恢复到健康范围。
+            # ppo_loss = -(ratio * adv * b_weights).mean()
+            # ppo_loss = -(logp * total_w).sum() / (total_w.sum() + 1e-8)
             current_mean = agent.actor_mean(b_obs)
-            anchor_loss = 0.01 * F.mse_loss(current_mean, b_act)
+            anchor_loss = args.bc_coef * F.mse_loss(current_mean, b_act)
 
-            # --- 5. 组合 Loss ---
             p_loss = ppo_loss + anchor_loss
-            loss = p_loss + args.vf_coef * v_loss
+            if epoch <= args.warmup_epochs:
+                loss = args.vf_coef * v_loss
+            else:
+                loss = p_loss + args.vf_coef * v_loss
 
             optimizer.zero_grad()
             loss.backward()
@@ -203,7 +222,7 @@ def train_offline(args):
             
         avg_v_loss = epoch_v_loss / len(dataloader)
         avg_p_loss = epoch_p_loss / len(dataloader)
-        current_std = torch.exp(agent.actor_logstd).mean().item()
+        current_std = torch.tensor(agent.actor_logstd).mean().item()
         
         print(f"Epoch: {epoch}/{args.epochs} | V Loss: {avg_v_loss:.4f} | P Loss: {avg_p_loss:.4f}| Mean Std: {current_std:.4f}")
 
@@ -213,22 +232,25 @@ def train_offline(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # 🌟 核心修改：nargs='+' 表示可以接收 1 个或多个参数
-    parser.add_argument("--dataset", type=str, nargs='+', default=["./test_collect_data"], 
+    parser.add_argument("--dataset", type=str, nargs='+', default=["/mnt/mnt1/linxuan/stack_cube_data/data/training/round1"], 
                         help="一个或多个数据文件夹路径，用空格分隔")
-    parser.add_argument("--initial_ckpt", type=str, default=None)
-    parser.add_argument("--out_dir", type=str, default="./runs/offline_training")
+    parser.add_argument("--initial_ckpt", type=str, default='examples/baselines/ppo/runs/StackCube-v1__ppo__1__1780033432/final_ckpt.pt')
+    parser.add_argument("--out_dir", type=str, default="./training/models/round1")
     
     parser.add_argument("--device", type=str, default="cuda:0")
-    parser.add_argument("--epochs", type=int, default=100)
+    parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch_size", type=int, default=2048)
     parser.add_argument("--learning_rate", type=float, default=1e-4)
-    parser.add_argument("--gamma", type=float, default=0.8)
-    parser.add_argument("--vf_coef", type=float, default=0.5)
-    parser.add_argument("--max_grad_norm", type=float, default=0.5)
-    parser.add_argument("--save_freq", type=int, default=10)
+    parser.add_argument("--gamma", type=float, default=0.95)
+    parser.add_argument("--vf_coef", type=float, default=1.0)
+    parser.add_argument("--bc_coef", type=float, default=1.0)
+    parser.add_argument("--warmup_epochs", type=int, default=2)
+    parser.add_argument("--max_grad_norm", type=float, default=1.0)
+    parser.add_argument("--combined_weight_max", type=float, default=10.0)
+    parser.add_argument("--save_freq", type=int, default=3)
     
-    parser.add_argument("--log_std", type=float, default=-2.0)
+    parser.add_argument("--log_std", default=None)
 
     args = parser.parse_args()
+    print(args)
     train_offline(args)
