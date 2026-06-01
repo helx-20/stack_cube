@@ -137,9 +137,10 @@ def main(args):
                     np.save(save_path, np.array(weighted_crashes))
                 else:
                     save_path = os.path.join(args.training_out, f"training_{args.worker_id}.npy")
-                    import pickle
-                    with open(save_path, "wb") as f:
-                        pickle.dump(buffer, f, protocol=4)
+                    np.save(save_path, np.array(buffer))
+                    # import pickle
+                    # with open(save_path, "wb") as f:
+                    #     pickle.dump(buffer, f, protocol=4)
 
     print(f"[*] 完成！最终 Crash Rate: {np.mean(weighted_crashes):.6e}", flush=True)
     env.close()
@@ -149,14 +150,14 @@ def main(args):
         np.save(save_path, np.array(weighted_crashes))
     else:
         save_path = os.path.join(args.training_out, f"training_{args.worker_id}.npy")
-        np.save(save_path, buffer)
+        np.save(save_path, np.array(buffer))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--worker_id', type=int, default=0)
     parser.add_argument('--env_id', type=str, default="StackCube-v1")
     # parser.add_argument('--checkpoint', type=str, default='examples/baselines/ppo/runs/StackCube-v1__ppo__1__1780033432/final_ckpt.pt')
-    parser.add_argument('--checkpoint', type=str, default='training/models/round1/offline_model_ep50.pt')
+    parser.add_argument('--checkpoint', type=str, default='training/models/round3/offline_model_ep100.pt')
     # parser.add_argument('--criticality_ckpt', type=str, default='criticality/stage2/model/stage2_dqn_iter5000.pt')
     parser.add_argument('--criticality_ckpt', type=str, default='criticality/stage1/model/stage1_criticality_best_1.pt')
     parser.add_argument('--device', type=str, default="cpu")

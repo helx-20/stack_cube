@@ -97,6 +97,8 @@ def load_offline_dataset(data_dirs, gamma=0.95):
                     path = os.path.join(data_dir, filename)
                     try:
                         data = np.load(path, allow_pickle=True)
+                        if isinstance(data, np.ndarray):
+                            data = data.item()
                     except Exception as e:
                         continue
                     obs = np.array(data['obs'], dtype=np.float32)
@@ -232,13 +234,13 @@ def train_offline(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", type=str, nargs='+', default=["/mnt/mnt1/linxuan/stack_cube_data/data/training/round1"], 
-                        help="一个或多个数据文件夹路径，用空格分隔")
-    parser.add_argument("--initial_ckpt", type=str, default='examples/baselines/ppo/runs/StackCube-v1__ppo__1__1780033432/final_ckpt.pt')
-    parser.add_argument("--out_dir", type=str, default="./training/models/round1")
+    parser.add_argument("--dataset", type=str, nargs='+', default=["/mnt/mnt1/linxuan/stack_cube_data/data/training/round4"])
+    # parser.add_argument("--initial_ckpt", type=str, default='examples/baselines/ppo/runs/StackCube-v1__ppo__1__1780033432/final_ckpt.pt')
+    parser.add_argument("--initial_ckpt", type=str, default='training/models/round3/offline_model_ep100.pt')
+    parser.add_argument("--out_dir", type=str, default="./training/models/round4")
     
     parser.add_argument("--device", type=str, default="cuda:0")
-    parser.add_argument("--epochs", type=int, default=50)
+    parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--batch_size", type=int, default=2048)
     parser.add_argument("--learning_rate", type=float, default=1e-4)
     parser.add_argument("--gamma", type=float, default=0.95)
