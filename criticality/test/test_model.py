@@ -157,7 +157,7 @@ if __name__ == '__main__':
     parser.add_argument('--worker_id', type=int, default=0)
     parser.add_argument('--env_id', type=str, default="StackCube-v1")
     # parser.add_argument('--checkpoint', type=str, default='examples/baselines/ppo/runs/StackCube-v1__ppo__1__1780033432/final_ckpt.pt')
-    parser.add_argument('--checkpoint', type=str, default='training/models/round4/offline_model_best.pt')
+    parser.add_argument('--checkpoint', type=str, default='training/models/round5/offline_model_best.pt')
     # parser.add_argument('--criticality_ckpt', type=str, default='criticality/stage2/model/stage2_dqn_iter5000.pt')
     parser.add_argument('--criticality_ckpt', type=str, default='criticality/stage1/model/stage1_criticality_best_1.pt')
     parser.add_argument('--device', type=str, default="cpu")
