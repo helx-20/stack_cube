@@ -234,10 +234,10 @@ def train_offline(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", type=str, nargs='+', default=["/mnt/mnt1/linxuan/stack_cube_data/data/training/round4"])
+    parser.add_argument("--dataset", type=str, nargs='+', default=["/mnt/mnt1/linxuan/stack_cube_data/data/training/round5"])
     # parser.add_argument("--initial_ckpt", type=str, default='examples/baselines/ppo/runs/StackCube-v1__ppo__1__1780033432/final_ckpt.pt')
-    parser.add_argument("--initial_ckpt", type=str, default='training/models/round3/offline_model_ep100.pt')
-    parser.add_argument("--out_dir", type=str, default="./training/models/round4")
+    parser.add_argument("--initial_ckpt", type=str, default='training/models/round4/offline_model_best.pt')
+    parser.add_argument("--out_dir", type=str, default="./training/models/round5")
     
     parser.add_argument("--device", type=str, default="cuda:0")
     parser.add_argument("--epochs", type=int, default=100)
@@ -245,7 +245,7 @@ if __name__ == "__main__":
     parser.add_argument("--learning_rate", type=float, default=1e-4)
     parser.add_argument("--gamma", type=float, default=0.95)
     parser.add_argument("--vf_coef", type=float, default=1.0)
-    parser.add_argument("--bc_coef", type=float, default=1.0)
+    parser.add_argument("--bc_coef", type=float, default=0.5)
     parser.add_argument("--warmup_epochs", type=int, default=2)
     parser.add_argument("--max_grad_norm", type=float, default=1.0)
     parser.add_argument("--combined_weight_max", type=float, default=10.0)
