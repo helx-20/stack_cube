@@ -92,10 +92,11 @@ class PickCubeEnv(BaseEnv):
             name="cube",
             initial_pose=sapien.Pose(p=[0, 0, self.cube_half_size]),
         )
-        self.goal_site = actors.build_sphere(
+        # use a red-white concentric target instead of a simple green sphere
+        self.goal_site = actors.build_red_white_target(
             self.scene,
             radius=self.goal_thresh,
-            color=[0, 1, 0, 1],
+            thickness=0.01,
             name="goal_site",
             body_type="kinematic",
             add_collision=False,
